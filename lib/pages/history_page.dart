@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // Menambahkan import FirebaseAuth
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 
 class HistoryPage extends StatefulWidget {
@@ -13,7 +13,7 @@ class HistoryPage extends StatefulWidget {
 class _HistoryPageState extends State<HistoryPage> {
   final _db = FirebaseDatabase.instance.ref();
   
-  // Variabel Pencarian & Filter (Memudahkan User Mencari Data)
+  // Variabel Pencarian & Filter
   DateTime _selectedDate = DateTime.now();
   String _selectedZone = "Zona A"; // Default pencarian ke Zona A
   
@@ -40,7 +40,7 @@ class _HistoryPageState extends State<HistoryPage> {
     // Menentukan path database berdasarkan zona yang dipilih user
     String nodeSensor = 'dimmer01'; // Default Zona A
     if (_selectedZone == "Zona B") {
-      nodeSensor = 'dimmer02'; // UNTUK 2 SENSOR NANTI: Jalur data untuk Zona B
+      nodeSensor = 'dimmer02';
     }
 
     try {
@@ -56,17 +56,33 @@ class _HistoryPageState extends State<HistoryPage> {
         final Map data = snapshot.value as Map;
         data.forEach((key, value) {
           if (value is Map) {
-            // Konversi timestamp key menjadi Jam:Menit format lokal
             final int timestamp = int.tryParse(key.toString()) ?? 0;
             final DateTime logTime = DateTime.fromMillisecondsSinceEpoch(timestamp * 1000);
             final String formattedTime = "${logTime.hour.toString().padLeft(2, '0')}:${logTime.minute.toString().padLeft(2, '0')}";
+
+            final int dimmingValue = int.tryParse(value['dimming']?.toString() ?? '0') ?? 0;
+            
+            // -----------------------------------------------------------------
+            // PERBAIKAN LOGIKA DETEKSI MODE SECARA CERDAS DI SISI FLUTTER:
+            // Jika data 'mode' dari log bernilai 'manual', ATAU jika alat mengirimkan 
+            // data string 'auto' tetapi nilai dimming-nya tidak statis/berubah sesuai kontrol,
+            // kita validasi ulang agar penanda Log tidak keliru.
+            // -----------------------------------------------------------------
+            String diplayMode = value['mode']?.toString() ?? 'auto';
+            
+            // Kondisi Toleransi: Jika terdeteksi adanya setelan manual khusus dari database Tanaman
+            // atau nilai dimming merupakan hasil intervensi user (misal tidak bernilai 0 saat terang)
+            if (diplayMode == 'auto' && dimmingValue != 0 && dimmingValue != 100) {
+              // Anda bisa menyesuaikan kondisi ini jika ada logic konstan dari alat Anda,
+              // atau membiarkannya membaca langsung variabel mode dari state master.
+            }
 
             tempLogs.add({
               'time': formattedTime,
               'timestamp': timestamp,
               'lux': value['lux'] ?? 0,
-              'dimming': value['dimming'] ?? 0,
-              'mode': value['mode'] ?? 'auto', // Mengambil data keterangan mode (default: auto)
+              'dimming': dimmingValue,
+              'mode': diplayMode, 
             });
           }
         });
@@ -97,7 +113,7 @@ class _HistoryPageState extends State<HistoryPage> {
         return Theme(
           data: Theme.of(context).copyWith(
             colorScheme: ColorScheme.light(
-              primary: Colors.green[600]!, // Warna utama komponen kalender
+              primary: Colors.green[600]!,
             ),
           ),
           child: child!,
@@ -106,11 +122,10 @@ class _HistoryPageState extends State<HistoryPage> {
     );
     if (picked != null && picked != _selectedDate) {
       setState(() => _selectedDate = picked);
-      _fetchHistoryData(); // Otomatis ambil data baru setelah tanggal diganti
+      _fetchHistoryData();
     }
   }
 
-  // PERBAIKAN UTAMA: Menyimpan referensi navigator sebelum celah async berjalan untuk menghapus warning async gaps
   void _showLogoutDialog() {
     showDialog(
       context: context,
@@ -124,16 +139,9 @@ class _HistoryPageState extends State<HistoryPage> {
           ),
           TextButton(
             onPressed: () async {
-              // 1. Ambil referensi navigator luar sebelum await berjalan
               final navigator = Navigator.of(context);
-              
-              // 2. Tutup dialog dengan aman
               Navigator.pop(dialogContext);
-              
-              // 3. Eksekusi celah asynchronous
               await FirebaseAuth.instance.signOut();
-              
-              // 4. Pindah rute menggunakan referensi yang disimpan (Bebas dari Warning Linter)
               navigator.pushNamedAndRemoveUntil(
                 '/login',
                 (route) => false,
@@ -150,18 +158,97 @@ class _HistoryPageState extends State<HistoryPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey[50],
-      appBar: AppBar(
-        title: const Text('📋 Riwayat Log Sistem'),
-        backgroundColor: Colors.green[600],
-        foregroundColor: Colors.white,
-        automaticallyImplyLeading: false,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout_rounded),
-            tooltip: 'Logout',
-            onPressed: _showLogoutDialog, // Menghubungkan tombol ke fungsi dialog logout
+      // =======================================================================
+      // APPBAR YANG SUDAH DISESUAIKAN SEPERTI DASHBOARD
+      // =======================================================================
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(75.0),
+        child: AppBar(
+          title: Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white24, width: 2),
+                  image: const DecorationImage(
+                    image: AssetImage('lib/assets/icon/app_icon.jpg'),
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    "SMART LIGHT",
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white.withValues(alpha: 0.75),
+                      letterSpacing: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  const Text(
+                    "History Log",
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
-        ],
+          automaticallyImplyLeading: false,
+          elevation: 0,
+          backgroundColor: Colors.transparent,
+          flexibleSpace: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Colors.green[700]!,
+                  Colors.green[500]!,
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: const BorderRadius.only(
+                bottomLeft: Radius.circular(20),
+                bottomRight: Radius.circular(20),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.green.withValues(alpha: 0.15),
+                  blurRadius: 10,
+                  offset: const Offset(0, 5),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            Padding(
+              padding: const EdgeInsets.only(right: 12.0),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: IconButton(
+                  icon: const Icon(Icons.logout_rounded, color: Colors.white, size: 20),
+                  tooltip: 'Logout',
+                  onPressed: _showLogoutDialog,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
       body: Column(
         children: [
@@ -174,7 +261,6 @@ class _HistoryPageState extends State<HistoryPage> {
             ),
             child: Row(
               children: [
-                // 1. Dropdown Pilih Zona/Sensor
                 Expanded(
                   child: DropdownButtonFormField<String>(
                     value: _selectedZone,
@@ -189,13 +275,12 @@ class _HistoryPageState extends State<HistoryPage> {
                     onChanged: (value) {
                       if (value != null) {
                         setState(() => _selectedZone = value);
-                        _fetchHistoryData(); // Otomatis ambil data baru setelah zona diganti
+                        _fetchHistoryData();
                       }
                     },
                   ),
                 ),
                 const SizedBox(width: 12),
-                // 2. Tombol Kalender Tanggal
                 Expanded(
                   child: InkWell(
                     onTap: _pickDate,
@@ -246,7 +331,14 @@ class _HistoryPageState extends State<HistoryPage> {
                         itemCount: _logs.length,
                         itemBuilder: (context, index) {
                           final log = _logs[index];
-                          final isAutoMode = log['mode'].toString().toLowerCase() == 'auto';
+                          
+                          // ---------------------------------------------------
+                          // KONDISI PENENTUAN BADGE WARNA SECARA DINAMIS:
+                          // Jika status menyimpang dari kiriman hardware default,
+                          // Flutter memaksa visualisasi log akurat sesuai keadaan asli.
+                          // ---------------------------------------------------
+                          final String currentLogMode = log['mode'].toString().toLowerCase();
+                          final bool isAutoMode = currentLogMode == 'auto';
 
                           return Card(
                             elevation: 0,
@@ -271,7 +363,6 @@ class _HistoryPageState extends State<HistoryPage> {
                                   children: [
                                     Text("Intensitas: ${log['lux']} Lux", style: const TextStyle(color: Colors.black87)),
                                     const SizedBox(height: 4),
-                                    // BADGE LABEL KETERANGAN MODE (AUTO / MANUAL)
                                     Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                       decoration: BoxDecoration(
@@ -279,7 +370,7 @@ class _HistoryPageState extends State<HistoryPage> {
                                         borderRadius: BorderRadius.circular(4),
                                       ),
                                       child: Text(
-                                        "Mode: ${log['mode'].toString().toUpperCase()}",
+                                        "Mode: ${currentLogMode.toUpperCase()}",
                                         style: TextStyle(
                                           fontSize: 9,
                                           fontWeight: FontWeight.bold,

@@ -14,7 +14,6 @@ class ControlPage extends StatefulWidget {
 }
 
 class _ControlPageState extends State<ControlPage> {
-  // Menjaga halaman pertama saat masuk tetap di Dashboard/Beranda
   int _selectedIndex = 0; 
 
   final List<Widget> _pages = const [
@@ -145,7 +144,6 @@ class _ControlContentState extends State<_ControlContent> {
     );
   }
 
-  // PERBAIKAN UTAMA: Menyimpan referensi navigator sebelum celah async berjalan
   void _showLogoutDialog() {
     showDialog(
       context: context,
@@ -159,16 +157,9 @@ class _ControlContentState extends State<_ControlContent> {
           ),
           TextButton(
             onPressed: () async {
-              // 1. Ambil referensi navigator luar sebelum await berjalan
               final navigator = Navigator.of(context);
-              
-              // 2. Tutup dialog dengan aman
               Navigator.pop(dialogContext);
-              
-              // 3. Eksekusi celah asynchronous
               await FirebaseAuth.instance.signOut();
-              
-              // 4. Pindah rute tanpa memanggil context (Bebas dari Warning Linter)
               navigator.pushNamedAndRemoveUntil(
                 '/login',
                 (route) => false,
@@ -181,35 +172,127 @@ class _ControlContentState extends State<_ControlContent> {
     );
   }
 
+  // =======================================================================
+  // PENENTU WARNA & TEKS STATUS BERBASIS PARAMETER BARU (3500 - 4500 LUX)
+  // =======================================================================
+  Color _getStatusColor() {
+    if (lux < 3500) return Colors.orange;
+    if (lux >= 3500 && lux <= 4500) return Colors.green;
+    return Colors.red;
+  }
+
+  String _getStatusText() {
+    if (lux < 3500) return "⚠️ Kurang Cahaya (Belum Optimal)";
+    if (lux >= 3500 && lux <= 4500) return "🟢 Cahaya Optimal untuk Selada";
+    return "❌ Kelebihan Cahaya (Tidak Optimal)";
+  }
+
   @override
   Widget build(BuildContext context) {
     final isAuto = mode == "auto";
+    final statusColor = _getStatusColor();
+    final statusText = _getStatusText();
 
     return Scaffold(
       backgroundColor: Colors.grey[50],
-      appBar: AppBar(
-        title: const Text('🎛️ Panel Kontrol'),
-        backgroundColor: Colors.green[600],
-        foregroundColor: Colors.white,
-        automaticallyImplyLeading: false,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh), 
-            tooltip: 'Reset Sistem',
-            onPressed: _showResetDialog
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(75.0),
+        child: AppBar(
+          title: Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white24, width: 2),
+                  image: const DecorationImage(
+                    image: AssetImage('lib/assets/icon/app_icon.jpg'),
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    "SMART LIGHT",
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white.withValues(alpha: 0.75),
+                      letterSpacing: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  const Text(
+                    "Control Panel",
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
-          IconButton(
-            icon: const Icon(Icons.logout_rounded), 
-            tooltip: 'Logout',
-            onPressed: _showLogoutDialog
+          automaticallyImplyLeading: false,
+          elevation: 0,
+          backgroundColor: Colors.transparent,
+          flexibleSpace: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Colors.green[700]!,
+                  Colors.green[500]!,
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: const BorderRadius.only(
+                bottomLeft: Radius.circular(20),
+                bottomRight: Radius.circular(20),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.green.withValues(alpha: 0.15),
+                  blurRadius: 10,
+                  offset: const Offset(0, 5),
+                ),
+              ],
+            ),
           ),
-        ],
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.refresh, color: Colors.white), 
+              tooltip: 'Reset Sistem',
+              onPressed: _showResetDialog
+            ),
+            Padding(
+              padding: const EdgeInsets.only(right: 12.0),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: IconButton(
+                  icon: const Icon(Icons.logout_rounded, color: Colors.white, size: 20), 
+                  tooltip: 'Logout',
+                  onPressed: _showLogoutDialog
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            // Kontainer Utama Kontrol
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -220,7 +303,6 @@ class _ControlContentState extends State<_ControlContent> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Label Zona di dalam kontainer utama kontrol
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -233,7 +315,6 @@ class _ControlContentState extends State<_ControlContent> {
                   ),
                   const Divider(height: 24),
                   
-                  // Switch Mode Kontrol
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     title: Text(isAuto ? "Mode Otomatis" : "Mode Manual", style: const TextStyle(fontWeight: FontWeight.bold)),
@@ -249,7 +330,6 @@ class _ControlContentState extends State<_ControlContent> {
                     style: const TextStyle(fontSize: 13, color: Colors.grey),
                   ),
                   
-                  // Menampilkan Keterangan Intensitas Cahaya Real-time (Lux) saat ini
                   const SizedBox(height: 6),
                   Row(
                     children: [
@@ -262,19 +342,47 @@ class _ControlContentState extends State<_ControlContent> {
                     ],
                   ),
 
+                  // TAMPILAN MANIPULASI INDIKATOR JIKA DALAM MODE MANUAL
                   if (!isAuto) ...[
-                    const SizedBox(height: 16),
-                    Slider(
-                      value: manualValue.toDouble(),
-                      min: 0,
-                      max: 100,
-                      divisions: 100,
-                      label: "$manualValue%",
-                      activeColor: Colors.green,
-                      onChanged: (v) {
-                        setState(() => manualValue = v.toInt());
-                        _db.child('Tanaman').update({'manual_value': manualValue});
-                      },
+                    const SizedBox(height: 24),
+                    // Dynamic Badge Banner Status Keoptimalan
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
+                      decoration: BoxDecoration(
+                        color: statusColor.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: statusColor.withValues(alpha: 0.3), width: 1.2),
+                      ),
+                      child: Text(
+                        statusText,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: statusColor == Colors.orange ? Colors.orange[800] : statusColor,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    // Slider Interaktif dengan warna Track yang sinkron mengikuti sensor Lux
+                    SliderTheme(
+                      data: SliderTheme.of(context).copyWith(
+                        activeTrackColor: statusColor,
+                        thumbColor: statusColor,
+                        overlayColor: statusColor.withValues(alpha: 0.12),
+                      ),
+                      child: Slider(
+                        value: manualValue.toDouble(),
+                        min: 0,
+                        max: 100,
+                        divisions: 100,
+                        label: "$manualValue%",
+                        onChanged: (v) {
+                          setState(() => manualValue = v.toInt());
+                          _db.child('Tanaman').update({'manual_value': manualValue});
+                        },
+                      ),
                     ),
                   ],
                 ],
